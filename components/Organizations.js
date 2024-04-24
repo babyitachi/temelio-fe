@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Accordion, AccordionDetails, AccordionSummary, Box, Button, FormControl, Input, InputLabel, MenuItem, OutlinedInput, Select, Tab, Tabs } from '@mui/material';
+import DataTable from './NonProfitTable';
 
 function OrganizationTabs() {
     const [foundations, setFoundations] = useState([]);
@@ -8,7 +9,11 @@ function OrganizationTabs() {
     const [selectedNonprofits, setSelectedNonprofits] = useState([]);
     const [selectedNonprofitEmails, setSelectedNonprofitEmails] = useState({});
     const [senderEmail, setSenderEmail] = useState('');
+    const [senderEmailCC, setSenderEmailCC] = useState('');
+    const [senderEmailBCC, setSenderEmailBCC] = useState('');
     const [value, setValue] = useState(0);
+    const [file, setFile] = useState(null);
+    const [csvData, setCsvData] = useState(null);
 
     const handleChange = (event, newValue) => {
         setValue(newValue);
@@ -16,6 +21,11 @@ function OrganizationTabs() {
     useEffect(() => {
         fetchNonprofits();
     }, []);
+
+    const handleFileChange = (event) => {
+        const selectedFile = event.target.files[0];
+        setFile(selectedFile);
+    };
 
     const handleAddFoundation = async (event) => {
         event.preventDefault();
@@ -56,7 +66,7 @@ function OrganizationTabs() {
         if (!selectedNonprofits.length || !senderEmail) return;
         try {
             const recipientEmails = selectedNonprofits;
-            const resp = await axios.post('/api/email/send', { nonProfitEmailIds: recipientEmails, senderEmailId: senderEmail });
+            const resp = await axios.post('/api/email/send', { nonProfitEmailIds: recipientEmails, senderEmailId: senderEmail, senderEmailCCId: senderEmailCC, senderEmailBCCId: senderEmailBCC });
             if (resp.data == "NotReg") {
                 alert('Foundation not registered!');
                 return;
@@ -72,6 +82,43 @@ function OrganizationTabs() {
             setNonprofits(response.data);
         } catch (error) {
             alert('Error fetching nonprofits', error);
+        }
+    };
+
+
+    const handleUploadNpCSV = async () => {
+        if (file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/files/uploadNpCSV', {
+                    method: 'POST',
+                    body: formData,
+                });
+                if (response.ok) {
+                    console.log('CSV file uploaded successfully!');
+                    alert('CSV file uploaded successfully!');
+                } else {
+                    console.error('Failed to upload CSV file');
+                    alert('Failed to upload CSV file');
+                }
+            } catch (error) {
+                console.error('Error uploading CSV file:', error);
+                alert('Error uploading CSV file:' + error?.toString());
+            }
+        } else {
+            alert('No File to upload!');
+
+        }
+    };
+
+    const fetchNpCSVData = async () => {
+        try {
+            const response = await axios.get('/api/files/getNpCSVData',);
+            setCsvData(response.data);
+        } catch (error) {
+            console.error('Error fetching  Np CSV data:', error);
         }
     };
 
@@ -97,7 +144,7 @@ function OrganizationTabs() {
                     <div className='flex gap-2'>
                         <FormControl sx={{ m: 1, width: 300 }}>
                             <InputLabel id="select-placeholder">NonProfit</InputLabel>
-                            <Select multiple value={selectedNonprofits}
+                            <Select required multiple value={selectedNonprofits}
                                 onChange={(e) => {
                                     const {
                                         target: { value },
@@ -116,20 +163,31 @@ function OrganizationTabs() {
                                 ))}
                             </Select>
                         </FormControl>
-                        <Input name="Sender email" placeholder="Sender email" className='p-2' value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} />
+                        <Input required name="Sender email" placeholder="Sender email*" className='p-2' value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} />
+                        <Input name="Sender CC email" placeholder="Sender CC email" className='p-2' value={senderEmailCC} onChange={(e) => setSenderEmailCC(e.target.value)} />
+                        <Input name="Sender BCC email" placeholder="Sender BCC email" className='p-2' value={senderEmailBCC} onChange={(e) => setSenderEmailBCC(e.target.value)} />
                         <Button onClick={handleSendEmail} color='primary' variant='contained' sx={{ font: "10px" }}>Send Email</Button>
                     </div>
                 </div>
             </TabPanel>
 
             <TabPanel value={value} index={1}>
-                <div className='flex flex-col gap-3'>
+                <div className='flex flex-col gap-4'>
                     <form onSubmit={handleAddNonprofit} className='gap-2 flex'>
                         <Input type="email" name="email" placeholder="Email" required />
                         <Input type="text" name="name" placeholder="Name" required />
                         <Input type="text" name="address" placeholder="Address" required />
                         <Button type="submit" color='primary' variant='contained' sx={{ font: "10px" }}>Add Nonprofit</Button>
                     </form>
+                    <div className='flex flex-col gap-1 my-2'>
+                        <h2 className='text-black'>Upload NonProfit CSV</h2>
+                        <p className='flex gap-2'>
+                            <Input type='file' onChange={handleFileChange} placeholder='select .csv file' />
+                            <Button onClick={handleUploadNpCSV} color='primary' variant='contained' sx={{ font: "10px" }}>Upload</Button>
+                            <Button onClick={fetchNpCSVData} color='primary' variant='contained' sx={{ font: "10px" }}>fetch</Button>
+                        </p>
+                    </div>
+                    {csvData && <DataTable data={csvData}></DataTable>}
                     {nonprofits.map((nonprofitEmail, index) => (
                         <Accordion key={index} onChange={() => { handleSelectNonprofit(nonprofitEmail) }}>
                             <AccordionSummary
